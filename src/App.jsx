@@ -1,61 +1,163 @@
-const summaryCards = [
-  { label: 'Critical Incidents', value: '12', trend: '+18.6%', isUp: true },
-  { label: 'Blocked Threats', value: '8,462', trend: '+21.4%', isUp: true },
-  { label: 'Vulnerabilities', value: '97', trend: '-8.2%', isUp: false },
-  { label: 'Patch SLA', value: '94%', trend: 'Within target', isUp: true },
-]
+import { useEffect, useState } from 'react';
 
-const attackTrend = [
-  { label: '00h', benign: 18, malicious: 12 },
-  { label: '04h', benign: 25, malicious: 17 },
-  { label: '08h', benign: 22, malicious: 16 },
-  { label: '12h', benign: 28, malicious: 19 },
-  { label: '16h', benign: 32, malicious: 27 },
-  { label: '20h', benign: 30, malicious: 24 },
-  { label: '24h', benign: 34, malicious: 31 },
-]
+const API_BASE = '/api';
 
-const threatMatrix = [
-  { name: 'Credential Abuse', value: 62 },
-  { name: 'Malware', value: 48 },
-  { name: 'Phishing', value: 81 },
-  { name: 'DoS', value: 31 },
-]
+const authRequest = async (endpoint, options = {}, token) => {
+  const headers = { ...(options.headers || {}) };
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
 
-const cases = [
-  { label: 'Ransomware Encryption', meta: 'IP: 10.14.27.11', severity: 'critical', time: '02m ago' },
-  { label: 'Suspicious IAM Login', meta: '3 failed MFA attempts', severity: 'high', time: '11m ago' },
-  { label: 'Threat IOC Match', meta: 'Malicious URL in tenant', severity: 'medium', time: '28m ago' },
-]
+  const response = await fetch(`${API_BASE}${endpoint}`, {
+    ...options,
+    headers,
+  });
 
-const assets = [
-  { name: 'Firewall', state: 'Healthy', type: 'good' },
-  { name: 'EDR Cluster', state: 'Watch', type: 'warning' },
-  { name: 'Proxy', state: 'Healthy', type: 'good' },
-  { name: 'IAM Portal', state: 'Critical', type: 'critical' },
-]
+  const contentType = response.headers.get('content-type') || '';
+  const payload = contentType.includes('application/json') ? await response.json() : await response.text();
 
-const incidents = [
-  { time: '08:42', source: 'Endpoint 64', type: 'Malware Detection', severity: 'critical', status: 'Contained' },
-  { time: '08:14', source: 'VPN Gateway', type: 'Failed Login Burst', severity: 'high', status: 'Monitoring' },
-  { time: '07:56', source: 'Web Filter', type: 'Suspicious URL', severity: 'medium', status: 'Blocked' },
-  { time: '07:30', source: 'Identity', type: 'MFA Fatigue', severity: 'high', status: 'Investigating' },
-]
+  if (!response.ok) {
+    throw new Error(payload?.message || 'Request failed');
+  }
+
+  return payload;
+};
+
+const formatSeverity = (severity) => severity?.toLowerCase();
 
 function App() {
-  const maxValue = 40
+  const [token, setToken] = useState(localStorage.getItem('cyberguard-token') || '');
+  const [user, setUser] = useState(JSON.parse(localStorage.getItem('cyberguard-user') || 'null'));
+  const [loading, setLoading] = useState(false);
+  const [authError, setAuthError] = useState('');
+  const [dashboard, setDashboard] = useState(null);
+  const [form, setForm] = useState({ email: 'admin@cyberguard.local', password: 'admin123' });
 
-  const pathFor = (data, key) => {
-    const values = data.map((point) => point[key])
-    const max = Math.max(...values)
-    return data
+  const fetchDashboard = async (authToken = token) => {
+    if (!authToken) return;
+    setLoading(true);
+
+    try {
+      const data = await authRequest('/dashboard', {}, authToken);
+      setDashboard(data);
+      setAuthError('');
+    } catch (error) {
+      setAuthError(error.message);
+      logout();
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (token) {
+      fetchDashboard(token);
+    }
+  }, [token]);
+
+  const handleLogin = async (event) => {
+    event.preventDefault();
+    setLoading(true);
+    setAuthError('');
+
+    try {
+      const response = await authRequest('/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: form.email,
+          password: form.password,
+        }),
+      });
+
+      localStorage.setItem('cyberguard-token', response.token);
+      localStorage.setItem('cyberguard-user', JSON.stringify(response.user));
+      setToken(response.token);
+      setUser(response.user);
+      setForm({ ...form, password: '' });
+    } catch (error) {
+      setAuthError(error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const logout = () => {
+    localStorage.removeItem('cyberguard-token');
+    localStorage.removeItem('cyberguard-user');
+    setToken('');
+    setUser(null);
+    setDashboard(null);
+  };
+
+  const pathFor = (points, key) => {
+    return points
       .map((point, index) => {
-        const x = 42 + index * 100
-        const y = 220 - (point[key] / maxValue) * 160
-        return `${index === 0 ? 'M' : 'L'} ${x} ${y}`
+        const x = 42 + index * 100;
+        const y = 220 - (point[key] / 40) * 160;
+        return `${index === 0 ? 'M' : 'L'} ${x} ${y}`;
       })
-      .join(' ')
+      .join(' ');
+  };
+
+  const maxValue = 40;
+
+  if (!token || !user || !dashboard) {
+    return (
+      <div className="login-shell">
+        <div className="login-card">
+          <div className="login-header">
+            <div className="brand-mark">C</div>
+            <div>
+              <p className="eyebrow">CyberGuard SOC</p>
+              <h2>Secure Access</h2>
+            </div>
+          </div>
+
+          <form onSubmit={handleLogin} className="login-form">
+            <label>
+              Email
+              <input
+                type="email"
+                value={form.email}
+                onChange={(e) => setForm({ ...form, email: e.target.value })}
+                placeholder="admin@cyberguard.local"
+              />
+            </label>
+
+            <label>
+              Password
+              <input
+                type="password"
+                value={form.password}
+                onChange={(e) => setForm({ ...form, password: e.target.value })}
+                placeholder="••••••••"
+              />
+            </label>
+
+            {authError && <div className="error-box">{authError}</div>}
+
+            <button className="primary-btn" type="submit" disabled={loading}>
+              {loading ? 'Signing in...' : 'Login'}
+            </button>
+          </form>
+
+          <div className="demo-note">
+            Demo credential: admin@cyberguard.local / admin123
+          </div>
+        </div>
+      </div>
+    );
   }
+
+  const summaryCards = dashboard.summary || [];
+  const attackTrend = dashboard.attackTrend || [];
+  const threatMatrix = dashboard.threatMatrix || [];
+  const cases = dashboard.cases || [];
+  const assets = dashboard.assets || [];
+  const incidents = dashboard.incidents || [];
 
   return (
     <div className="app-shell">
@@ -127,7 +229,8 @@ function App() {
           </div>
 
           <div className="topbar-actions">
-            <button className="ghost-btn">Export report</button>
+            <span className="user-badge">{user.name}</span>
+            <button className="ghost-btn" onClick={logout}>Logout</button>
             <button className="primary-btn">Investigate</button>
           </div>
         </header>
@@ -173,9 +276,9 @@ function App() {
                 <path d={pathFor(attackTrend, 'malicious')} fill="none" stroke="#ff5d73" strokeWidth="3" strokeLinecap="round" />
 
                 {attackTrend.map((point, index) => {
-                  const x = 42 + index * 100
-                  const benignY = 220 - (point.benign / maxValue) * 160
-                  const maliciousY = 220 - (point.malicious / maxValue) * 160
+                  const x = 42 + index * 100;
+                  const benignY = 220 - (point.benign / maxValue) * 160;
+                  const maliciousY = 220 - (point.malicious / maxValue) * 160;
 
                   return (
                     <g key={point.label}>
@@ -183,7 +286,7 @@ function App() {
                       <circle cx={x} cy={maliciousY} r="4" fill="#ff5d73" />
                       <text x={x - 12} y="245" fill="rgba(180,196,220,0.85)" fontSize="11">{point.label}</text>
                     </g>
-                  )
+                  );
                 })}
               </svg>
             </div>
@@ -200,7 +303,7 @@ function App() {
             <div className="score-ring">
               <div className="ring">
                 <div className="ring-inner">
-                  <span>89</span>
+                  <span>{dashboard.score || 89}</span>
                   <small>Secure</small>
                 </div>
               </div>
@@ -296,11 +399,11 @@ function App() {
             </thead>
             <tbody>
               {incidents.map((item) => (
-                <tr key={`${item.time}-${item.source}`}>
-                  <td>{item.time}</td>
+                <tr key={`${item.id || item.source}-${item.created_at}`}>
+                  <td>{new Date(item.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</td>
                   <td>{item.source}</td>
                   <td>{item.type}</td>
-                  <td className={`sev ${item.severity}`}>{item.severity}</td>
+                  <td className={`sev ${formatSeverity(item.severity)}`}>{item.severity}</td>
                   <td>{item.status}</td>
                 </tr>
               ))}
@@ -309,7 +412,7 @@ function App() {
         </section>
       </main>
     </div>
-  )
+  );
 }
 
-export default App
+export default App;
