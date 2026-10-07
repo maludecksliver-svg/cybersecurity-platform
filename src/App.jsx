@@ -1,64 +1,62 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react'
 
-const API_BASE = '/api';
+const API_BASE = '/api'
 
 const authRequest = async (endpoint, options = {}, token) => {
-  const headers = { ...(options.headers || {}) };
+  const headers = { ...(options.headers || {}) }
   if (token) {
-    headers.Authorization = `Bearer ${token}`;
+    headers.Authorization = `Bearer ${token}`
   }
 
   const response = await fetch(`${API_BASE}${endpoint}`, {
     ...options,
     headers,
-  });
+  })
 
-  const contentType = response.headers.get('content-type') || '';
-  const payload = contentType.includes('application/json') ? await response.json() : await response.text();
+  const contentType = response.headers.get('content-type') || ''
+  const payload = contentType.includes('application/json') ? await response.json() : await response.text()
 
   if (!response.ok) {
-    throw new Error(payload?.message || 'Request failed');
+    throw new Error(payload?.message || 'Request failed')
   }
 
-  return payload;
-};
-
-const formatSeverity = (severity) => severity?.toLowerCase();
+  return payload
+}
 
 function App() {
-  const [token, setToken] = useState(localStorage.getItem('cyberguard-token') || '');
-  const [user, setUser] = useState(JSON.parse(localStorage.getItem('cyberguard-user') || 'null'));
-  const [loading, setLoading] = useState(false);
-  const [authError, setAuthError] = useState('');
-  const [dashboard, setDashboard] = useState(null);
-  const [form, setForm] = useState({ email: 'admin@cyberguard.local', password: 'admin123' });
+  const [token, setToken] = useState(localStorage.getItem('cyberguard-token') || '')
+  const [user, setUser] = useState(JSON.parse(localStorage.getItem('cyberguard-user') || 'null'))
+  const [loading, setLoading] = useState(false)
+  const [authError, setAuthError] = useState('')
+  const [dashboard, setDashboard] = useState(null)
+  const [form, setForm] = useState({ email: 'admin@cyberguard.local', password: 'admin123' })
 
   const fetchDashboard = async (authToken = token) => {
-    if (!authToken) return;
-    setLoading(true);
+    if (!authToken) return
+    setLoading(true)
 
     try {
-      const data = await authRequest('/dashboard', {}, authToken);
-      setDashboard(data);
-      setAuthError('');
+      const data = await authRequest('/dashboard', {}, authToken)
+      setDashboard(data)
+      setAuthError('')
     } catch (error) {
-      setAuthError(error.message);
-      logout();
+      setAuthError(error.message)
+      logout()
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }
 
   useEffect(() => {
     if (token) {
-      fetchDashboard(token);
+      fetchDashboard(token)
     }
-  }, [token]);
+  }, [token])
 
   const handleLogin = async (event) => {
-    event.preventDefault();
-    setLoading(true);
-    setAuthError('');
+    event.preventDefault()
+    setLoading(true)
+    setAuthError('')
 
     try {
       const response = await authRequest('/auth/login', {
@@ -70,39 +68,27 @@ function App() {
           email: form.email,
           password: form.password,
         }),
-      });
+      })
 
-      localStorage.setItem('cyberguard-token', response.token);
-      localStorage.setItem('cyberguard-user', JSON.stringify(response.user));
-      setToken(response.token);
-      setUser(response.user);
-      setForm({ ...form, password: '' });
+      localStorage.setItem('cyberguard-token', response.token)
+      localStorage.setItem('cyberguard-user', JSON.stringify(response.user))
+      setToken(response.token)
+      setUser(response.user)
+      setForm({ ...form, password: '' })
     } catch (error) {
-      setAuthError(error.message);
+      setAuthError(error.message)
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }
 
   const logout = () => {
-    localStorage.removeItem('cyberguard-token');
-    localStorage.removeItem('cyberguard-user');
-    setToken('');
-    setUser(null);
-    setDashboard(null);
-  };
-
-  const pathFor = (points, key) => {
-    return points
-      .map((point, index) => {
-        const x = 42 + index * 100;
-        const y = 220 - (point[key] / 40) * 160;
-        return `${index === 0 ? 'M' : 'L'} ${x} ${y}`;
-      })
-      .join(' ');
-  };
-
-  const maxValue = 40;
+    localStorage.removeItem('cyberguard-token')
+    localStorage.removeItem('cyberguard-user')
+    setToken('')
+    setUser(null)
+    setDashboard(null)
+  }
 
   if (!token || !user || !dashboard) {
     return (
@@ -149,15 +135,27 @@ function App() {
           </div>
         </div>
       </div>
-    );
+    )
   }
 
-  const summaryCards = dashboard.summary || [];
-  const attackTrend = dashboard.attackTrend || [];
-  const threatMatrix = dashboard.threatMatrix || [];
-  const cases = dashboard.cases || [];
-  const assets = dashboard.assets || [];
-  const incidents = dashboard.incidents || [];
+  const summaryCards = dashboard.summary || []
+  const attackTrend = dashboard.attackTrend || []
+  const threatMatrix = dashboard.threatMatrix || []
+  const cases = dashboard.cases || []
+  const assets = dashboard.assets || []
+  const incidents = dashboard.incidents || []
+
+  const pathFor = (points, key) => {
+    return points
+      .map((point, index) => {
+        const x = 42 + index * 100
+        const y = 220 - (point[key] / 40) * 160
+        return `${index === 0 ? 'M' : 'L'} ${x} ${y}`
+      })
+      .join(' ')
+  }
+
+  const maxValue = 40
 
   return (
     <div className="app-shell">
@@ -259,7 +257,7 @@ function App() {
             </div>
 
             <div className="chart-area">
-              <svg viewBox="0 0 700 250" className="chart-svg" aria-label="Attack trend chart">
+              <svg viewBox="0 0 700 250" className="chart-svg">
                 {[0, 1, 2, 3, 4].map((line) => (
                   <line
                     key={line}
@@ -276,9 +274,9 @@ function App() {
                 <path d={pathFor(attackTrend, 'malicious')} fill="none" stroke="#ff5d73" strokeWidth="3" strokeLinecap="round" />
 
                 {attackTrend.map((point, index) => {
-                  const x = 42 + index * 100;
-                  const benignY = 220 - (point.benign / maxValue) * 160;
-                  const maliciousY = 220 - (point.malicious / maxValue) * 160;
+                  const x = 42 + index * 100
+                  const benignY = 220 - (point.benign / maxValue) * 160
+                  const maliciousY = 220 - (point.malicious / maxValue) * 160
 
                   return (
                     <g key={point.label}>
@@ -286,7 +284,7 @@ function App() {
                       <circle cx={x} cy={maliciousY} r="4" fill="#ff5d73" />
                       <text x={x - 12} y="245" fill="rgba(180,196,220,0.85)" fontSize="11">{point.label}</text>
                     </g>
-                  );
+                  )
                 })}
               </svg>
             </div>
@@ -403,7 +401,7 @@ function App() {
                   <td>{new Date(item.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</td>
                   <td>{item.source}</td>
                   <td>{item.type}</td>
-                  <td className={`sev ${formatSeverity(item.severity)}`}>{item.severity}</td>
+                  <td className={`sev ${item.severity}`}>{item.severity}</td>
                   <td>{item.status}</td>
                 </tr>
               ))}
@@ -412,7 +410,7 @@ function App() {
         </section>
       </main>
     </div>
-  );
+  )
 }
 
-export default App;
+export default App
